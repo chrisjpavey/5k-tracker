@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>5K Run Tracker</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="application-name" content="5K Tracker">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="5K Tracker">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#228be6">
+    
+    <!-- Icons -->
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    
+    <!-- Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            color: #212529;
+            min-height: 100vh;
+            padding: 20px;
+            padding-top: env(safe-area-inset-top, 20px);
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        
+        .container { max-width: 800px; margin: 0 auto; }
+        
+        h1 { font-size: 1.8em; font-weight: 700; margin-bottom: 24px; }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        
+        .card-title {
+            font-size: 0.75em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #868e96;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+        
+        .stat-box {
+            text-align: center;
+            padding: 16px 8px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .stat-value { font-size: 1.5em; font-weight: 700; }
+        .stat-label { font-size: 0.7em; color: #868e96; text-transform: uppercase; margin-top: 4px; }
+        
+        .chart-container { height: 180px; margin-top: 20px; }
+        
+        .week-card {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        
+        .week-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: #f8f9fa;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .week-header:hover { background: #f1f3f5; }
+        
+        .week-header.current {
+            background: #e7f5ff;
+            border-left: 4px solid #228be6;
+        }
+        
+        .week-title { font-weight: 700; font-size: 1.1em; }
+        .week-dates { font-size: 0.8em; color: #868e96; margin-top: 2px; }
+        
+        .week-stats { display: flex; align-items: center; gap: 16px; }
+        
+        .week-avg-time { font-size: 1.2em; font-weight: 700; }
+        .week-avg-label { font-size: 0.65em; color: #868e96; text-transform: uppercase; }
+        
+        .week-change {
+            font-size: 0.8em;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+        
+        .week-change.faster { background: #d3f9d8; color: #2f9e44; }
+        .week-change.slower { background: #ffe3e3; color: #e03131; }
+        
+        .completion-text { font-size: 0.85em; font-weight: 600; color: #495057; }
+        
+        .completion-bar {
+            width: 80px;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .completion-fill {
+            height: 100%;
+            background: #228be6;
+            border-radius: 4px;
+        }
+        
+        .completion-fill.complete { background: #40c057; }
+        
+        .expand-icon {
+            color: #868e96;
+            transition: transform 0.2s;
+        }
+        
+        .expand-icon.open { transform: rotate(180deg); }
+        
+        .week-body {
+            padding: 20px;
+            border-top: 1px solid #f1f3f5;
+        }
+        
+        .runs-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        
+        .run-slot {
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid transparent;
+        }
+        
+        .run-slot.completed {
+            background: #d3f9d8;
+            border-color: #40c057;
+        }
+        
+        .run-number { font-weight: 600; font-size: 0.9em; color: #495057; margin-bottom: 8px; }
+        .run-date { font-size: 0.75em; color: #868e96; float: right; }
+        
+        .run-time { font-size: 1.4em; font-weight: 700; margin: 8px 0; }
+        .run-time.empty { color: #ced4da; }
+        
+        .run-diff { font-size: 0.8em; font-weight: 600; margin-bottom: 8px; }
+        .run-diff.faster { color: #2f9e44; }
+        .run-diff.slower { color: #e03131; }
+        .run-diff.first { color: #1971c2; }
+        
+        .time-input { display: flex; gap: 4px; align-items: center; margin-bottom: 8px; }
+        
+        .time-input input {
+            width: 44px;
+            padding: 8px 4px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .time-input input:focus {
+            outline: none;
+            border-color: #228be6;
+        }
+        
+        .time-input span { color: #868e96; font-weight: 600; }
+        
+        .btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.8em;
+            font-weight: 600;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .btn-save { background: #228be6; color: white; width: 100%; }
+        .btn-save:hover { background: #1c7ed6; }
+        
+        .btn-clear { background: transparent; color: #fa5252; font-size: 0.75em; padding: 4px 8px; }
+        .btn-clear:hover { background: #fff5f5; }
+        
+        .week-summary {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 32px;
+        }
+        
+        .summary-stat { text-align: center; }
+        .summary-value { font-size: 1.2em; font-weight: 700; }
+        .summary-label { font-size: 0.7em; color: #868e96; text-transform: uppercase; }
+        
+        @media (max-width: 600px) {
+            .runs-grid { grid-template-columns: repeat(2, 1fr); }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .week-stats { flex-wrap: wrap; gap: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        
+        const generateWeeks = () => {
+            const weeks = [];
+            const start = new Date('2024-12-16');
+            for (let i = 0; i < 52; i++) {
+                const weekStart = new Date(start);
+                weekStart.setDate(start.getDate() + i * 7);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+                weeks.push({
+                    id: i + 1,
+                    start: weekStart.toISOString(),
+                    end: weekEnd.toISOString(),
+                    runs: [null, null, null, null],
+                    dates: [null, null, null, null],
+                    expanded: false
+                });
+            }
+            return weeks;
+        };
+        
+        function App() {
+            const [weeks, setWeeks] = useState(() => {
+                const saved = localStorage.getItem('5k-runs-v2');
+                return saved ? JSON.parse(saved) : generateWeeks();
+            });
+            const [inputs, setInputs] = useState({});
+            const chartRef = useRef(null);
+            const chartInst = useRef(null);
+            
+            useEffect(() => {
+                localStorage.setItem('5k-runs-v2', JSON.stringify(weeks));
+            }, [weeks]);
+            
+            useEffect(() => {
+                if (!chartRef.current) return;
+                if (chartInst.current) chartInst.current.destroy();
+                
+                const data = weeks.filter(w => getAvg(w)).map(w => ({ label: `Wk ${w.id}`, avg: getAvg(w) }));
+                if (data.length < 2) return;
+                
+                chartInst.current = new Chart(chartRef.current, {
+                    type: 'line',
+                    data: {
+                        labels: data.map(d => d.label),
+                        datasets: [{
+                            data: data.map(d => d.avg),
+                            borderColor: '#228be6',
+                            backgroundColor: 'rgba(34,139,230,0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 6,
+                            pointBackgroundColor: '#228be6'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: {
+                                reverse: true,
+                                ticks: { callback: v => fmtTime(v) }
+                            }
+                        }
+                    }
+                });
+            }, [weeks]);
+            
+            const fmtTime = s => {
+                if (!s) return '--:--';
+                return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+            };
+            
+            const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+            
+            const fmtRange = (s, e) => `${fmtDate(s)} – ${fmtDate(e)}`;
+            
+            const isCurrent = w => {
+                const now = new Date();
+                return now >= new Date(w.start) && now <= new Date(w.end);
+            };
+            
+            const getLabel = w => {
+                if (isCurrent(w)) return 'This Week';
+                const now = new Date();
+                const diff = Math.floor((now - new Date(w.start)) / 86400000);
+                if (diff >= 0 && diff < 14) return 'Last Week';
+                return `Week ${w.id}`;
+            };
+            
+            const getCount = w => w.runs.filter(r => r !== null).length;
+            
+            const getAvg = w => {
+                const times = w.runs.filter(r => r !== null);
+                return times.length ? Math.round(times.reduce((a,b) => a+b, 0) / times.length) : null;
+            };
+            
+            const getBest = w => {
+                const times = w.runs.filter(r => r !== null);
+                return times.length ? Math.min(...times) : null;
+            };
+            
+            const getPrevAvg = wid => {
+                for (let i = wid - 2; i >= 0; i--) {
+                    const avg = getAvg(weeks[i]);
+                    if (avg) return avg;
+                }
+                return null;
+            };
+            
+            const getAllRuns = () => {
+                const all = [];
+                weeks.forEach(w => {
+                    w.runs.forEach((t, i) => {
+                        if (t !== null) all.push({ time: t, date: w.dates[i], wid: w.id, rid: i });
+                    });
+                });
+                return all.sort((a, b) => new Date(b.date) - new Date(a.date));
+            };
+            
+            const getPrevRun = (wid, rid) => {
+                const all = getAllRuns();
+                let found = false;
+                for (const r of all) {
+                    if (r.wid === wid && r.rid === rid) { found = true; continue; }
+                    if (found) return r.time;
+                }
+                return null;
+            };
+            
+            const toggle = id => setWeeks(weeks.map(w => w.id === id ? {...w, expanded: !w.expanded} : w));
+            
+            const save = (wid, rid) => {
+                const k = `${wid}-${rid}`;
+                const inp = inputs[k] || {};
+                const secs = (parseInt(inp.m) || 0) * 60 + (parseInt(inp.s) || 0);
+                if (!secs) return;
+                
+                setWeeks(weeks.map(w => {
+                    if (w.id !== wid) return w;
+                    const runs = [...w.runs];
+                    const dates = [...w.dates];
+                    runs[rid] = secs;
+                    dates[rid] = new Date().toISOString();
+                    return {...w, runs, dates};
+                }));
+                setInputs({...inputs, [k]: {}});
+            };
+            
+            const clear = (wid, rid) => {
+                setWeeks(weeks.map(w => {
+                    if (w.id !== wid) return w;
+                    const runs = [...w.runs];
+                    const dates = [...w.dates];
+                    runs[rid] = null;
+                    dates[rid] = null;
+                    return {...w, runs, dates};
+                }));
+            };
+            
+            const setInp = (wid, rid, f, v) => {
+                const k = `${wid}-${rid}`;
+                setInputs({...inputs, [k]: {...(inputs[k]||{}), [f]: v}});
+            };
+            
+            const allRuns = getAllRuns();
+            const total = allRuns.length;
+            const best = total ? Math.min(...allRuns.map(r => r.time)) : null;
+            const avg = total ? Math.round(allRuns.reduce((a,r) => a + r.time, 0) / total) : null;
+            const perfect = weeks.filter(w => getCount(w) === 4).length;
+            
+            const now = new Date();
+            const visible = weeks.filter(w => getCount(w) > 0 || isCurrent(w) || new Date(w.start) <= new Date(now.getTime() + 7*86400000)).slice(0, 8);
+            
+            return (
+                <div className="container">
+                    <h1>🏃 5K Run Tracker</h1>
+                    
+                    <div className="card">
+                        <div className="card-title">Overall</div>
+                        <div className="stats-grid">
+                            <div className="stat-box">
+                                <div className="stat-value">{total}</div>
+                                <div className="stat-label">Runs</div>
+                            </div>
+                            <div className="stat-box">
+                                <div className="stat-value">{fmtTime(best)}</div>
+                                <div className="stat-label">Best</div>
+                            </div>
+                            <div className="stat-box">
+                                <div className="stat-value">{fmtTime(avg)}</div>
+                                <div className="stat-label">Average</div>
+                            </div>
+                            <div className="stat-box">
+                                <div className="stat-value">{perfect}</div>
+                                <div className="stat-label">Perfect Wks</div>
+                            </div>
+                        </div>
+                        {total >= 2 && (
+                            <div className="chart-container">
+                                <canvas ref={chartRef}></canvas>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {visible.map(w => {
+                        const count = getCount(w);
+                        const wavg = getAvg(w);
+                        const prevAvg = getPrevAvg(w.id);
+                        const diff = wavg && prevAvg ? prevAvg - wavg : null;
+                        const current = isCurrent(w);
+                        
+                        return (
+                            <div key={w.id} className="week-card">
+                                <div className={`week-header ${current ? 'current' : ''}`} onClick={() => toggle(w.id)}>
+                                    <div>
+                                        <div className="week-title">{getLabel(w)}</div>
+                                        <div className="week-dates">{fmtRange(w.start, w.end)}</div>
+                                    </div>
+                                    <div className="week-stats">
+                                        {diff !== null && (
+                                            <div className={`week-change ${diff > 0 ? 'faster' : 'slower'}`}>
+                                                {diff > 0 ? `↓ ${fmtTime(diff)}` : `↑ ${fmtTime(Math.abs(diff))}`}
+                                            </div>
+                                        )}
+                                        {wavg && (
+                                            <div style={{textAlign: 'right'}}>
+                                                <div className="week-avg-time">{fmtTime(wavg)}</div>
+                                                <div className="week-avg-label">avg</div>
+                                            </div>
+                                        )}
+                                        <div className="completion-text">{count}/4</div>
+                                        <div className="completion-bar">
+                                            <div className={`completion-fill ${count === 4 ? 'complete' : ''}`} style={{width: `${count * 25}%`}} />
+                                        </div>
+                                        <span className={`expand-icon ${w.expanded ? 'open' : ''}`}>▼</span>
+                                    </div>
+                                </div>
+                                
+                                {w.expanded && (
+                                    <div className="week-body">
+                                        <div className="runs-grid">
+                                            {w.runs.map((time, i) => {
+                                                const prev = getPrevRun(w.id, i);
+                                                const runDiff = time && prev ? prev - time : null;
+                                                const k = `${w.id}-${i}`;
+                                                const inp = inputs[k] || {};
+                                                
+                                                return (
+                                                    <div key={i} className={`run-slot ${time ? 'completed' : ''}`}>
+                                                        <div className="run-number">
+                                                            Run {i + 1}
+                                                            {w.dates[i] && <span className="run-date">{fmtDate(w.dates[i])}</span>}
+                                                        </div>
+                                                        
+                                                        {time ? (
+                                                            <>
+                                                                <div className="run-time">{fmtTime(time)}</div>
+                                                                <div className={`run-diff ${runDiff > 0 ? 'faster' : runDiff < 0 ? 'slower' : 'first'}`}>
+                                                                    {runDiff !== null 
+                                                                        ? (runDiff > 0 ? `↓ ${fmtTime(runDiff)} faster` : `↑ ${fmtTime(Math.abs(runDiff))} slower`)
+                                                                        : 'First run!'}
+                                                                </div>
+                                                                <button className="btn btn-clear" onClick={() => clear(w.id, i)}>Clear</button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <div className="run-time empty">--:--</div>
+                                                                <div className="time-input">
+                                                                    <input type="number" placeholder="mm" value={inp.m || ''} onChange={e => setInp(w.id, i, 'm', e.target.value)} />
+                                                                    <span>:</span>
+                                                                    <input type="number" placeholder="ss" value={inp.s || ''} onChange={e => setInp(w.id, i, 's', e.target.value)} />
+                                                                </div>
+                                                                <button className="btn btn-save" onClick={() => save(w.id, i)}>Log</button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        
+                                        {count > 0 && (
+                                            <div className="week-summary">
+                                                <div className="summary-stat">
+                                                    <div className="summary-value">{fmtTime(wavg)}</div>
+                                                    <div className="summary-label">Week Avg</div>
+                                                </div>
+                                                <div className="summary-stat">
+                                                    <div className="summary-value">{fmtTime(getBest(w))}</div>
+                                                    <div className="summary-label">Week Best</div>
+                                                </div>
+                                                <div className="summary-stat">
+                                                    <div className="summary-value">{count}/4</div>
+                                                    <div className="summary-label">Done</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        }
+        
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+    
+    <script>
+        // Register service worker for offline capability
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed'));
+        }
+    </script>
+</body>
+</html>
